@@ -1,82 +1,104 @@
 import torch
 from torchvision import datasets, transforms
-from torch.utils.data import DataLoader,Dataset
+from torch.utils.data import DataLoader, Dataset
 import numpy as np
-import scipy.io
+# import scipy.io
 import gzip
 import wget
 import h5py
 import pickle
-import urllib
+# import urllib
 import os
 import skimage
 import skimage.transform
-from skimage.io import imread
-import matplotlib.image as mpimg
+# from skimage.io import imread
+# import matplotlib.image as mpimg
 
 
-def LoadDataset(name, root, batch_size, split,shuffle=True, style=None, attr=None):
-    if name == 'mnist':
+def LoadDataset(name, root, batch_size, split, shuffle=True, style=None, attr=None):
+    if name in ['covidct', 'sarscov', 'amazon', 'dslr', 'webcam']:
+        if split == 'train':
+            return LoadData(root, name, batch_size=batch_size, split='train', shuffle=shuffle)
+        elif split == 'test':
+            return LoadData(root, name, batch_size=batch_size, split='test', shuffle=shuffle)
+
+    elif name == 'mnist':
         if split == 'train':
             return LoadMNIST(root+'mnist/', batch_size=batch_size, split='train', shuffle=shuffle, scale_32=True)
-        elif split=='test':
+        elif split == 'test':
             return LoadMNIST(root+'mnist/', batch_size=batch_size, split='test', shuffle=False, scale_32=True)
     elif name == 'usps':
         if split == 'train':
             return LoadUSPS(root+'usps/', batch_size=batch_size, split='train', shuffle=shuffle, scale_32=True)
-        elif split=='test':
+        elif split == 'test':
             return LoadUSPS(root+'usps/', batch_size=batch_size, split='test', shuffle=False, scale_32=True)
     elif name == 'svhn':
         if split == 'train':
             return LoadSVHN(root+'svhn/', batch_size=batch_size, split='extra', shuffle=shuffle)
-        elif split=='test':
+        elif split == 'test':
             return LoadSVHN(root+'svhn/', batch_size=batch_size, split='test', shuffle=False)
     elif name == 'face':
         assert style != None
         if split == 'train':
             return LoadFace(root, style=style, split='train', batch_size=batch_size,  shuffle=shuffle)
-        elif split=='test':
+        elif split == 'test':
             return LoadFace(root, style=style, split='test', batch_size=batch_size,  shuffle=False)
+
+
+def LoadData(root_path, dir, batch_size, split, shuffle):
+    if split == 'train':
+        transform = transforms.Compose([transforms.Resize([32, 32]),
+                                        # transforms.RandomCrop(224),
+                                        # transforms.RandomHorizontalFlip(),
+                                        transforms.ToTensor()])
+    else:
+        transform = transforms.Compose([transforms.Resize([32, 32]),
+                                        transforms.ToTensor()])
+    data = datasets.ImageFolder(root=root_path+dir, transform=transform)
+    data_loader = DataLoader(data, batch_size=batch_size, shuffle=shuffle, drop_last=(split == 'train'))
+    return data_loader
 
 
 def LoadSVHN(data_root, batch_size=32, split='train', shuffle=True):
     if not os.path.exists(data_root):
         os.makedirs(data_root)
     svhn_dataset = datasets.SVHN(data_root, split=split, download=True,
-                                   transform=transforms.ToTensor())
-    return DataLoader(svhn_dataset,batch_size=batch_size, shuffle=shuffle, drop_last=True)
+                                 transform=transforms.ToTensor())
+    return DataLoader(svhn_dataset, batch_size=batch_size, shuffle=shuffle, drop_last=True)
 
-def LoadUSPS(data_root, batch_size=32, split='train', shuffle=True, scale_32 = False):
+
+def LoadUSPS(data_root, batch_size=32, split='train', shuffle=True, scale_32=False):
     if not os.path.exists(data_root):
         os.makedirs(data_root)
 
-    usps_dataset = USPS(root=data_root,train=(split=='train'),download=True,scale_32=scale_32)
-    return DataLoader(usps_dataset,batch_size=batch_size, shuffle=shuffle, drop_last=True)
+    usps_dataset = USPS(root=data_root, train=(split == 'train'), download=True, scale_32=scale_32)
+    return DataLoader(usps_dataset, batch_size=batch_size, shuffle=shuffle, drop_last=True)
 
-def LoadMNIST(data_root, batch_size=32, split='train', shuffle=True, scale_32 = False):
+
+def LoadMNIST(data_root, batch_size=32, split='train', shuffle=True, scale_32=False):
     if not os.path.exists(data_root):
         os.makedirs(data_root)
 
     if scale_32:
-        trans = transforms.Compose([transforms.Resize(size=[32, 32]),transforms.ToTensor()])
+        trans = transforms.Compose([transforms.Resize(size=[32, 32]), transforms.ToTensor()])
     else:
         trans = transforms.ToTensor()
 
-    mnist_dataset = datasets.MNIST(data_root, train=(split=='train'), download=True,
+    mnist_dataset = datasets.MNIST(data_root, train=(split == 'train'), download=True,
                                    transform=trans)
-    return DataLoader(mnist_dataset,batch_size=batch_size,shuffle=shuffle, drop_last=True)
+    return DataLoader(mnist_dataset, batch_size=batch_size, shuffle=shuffle, drop_last=True)
 
 
-def LoadFace(data_root, batch_size=32, split='train', style='photo', attr = None,
-               shuffle=True, load_first_n = None):
+def LoadFace(data_root, batch_size=32, split='train', style='photo', attr=None,
+             shuffle=True, load_first_n=None):
 
     data_root = data_root+'face.h5'
-    key = '/'.join(['CelebA',split,style])
-    celeba_dataset = Face(data_root,key,load_first_n)
-    return DataLoader(celeba_dataset,batch_size=batch_size,shuffle=shuffle,drop_last=True)
+    key = '/'.join(['CelebA', split, style])
+    celeba_dataset = Face(data_root, key, load_first_n)
+    return DataLoader(celeba_dataset, batch_size=batch_size, shuffle=shuffle, drop_last=True)
 
 
-### USPS Reference : https://github.com/corenel/torchzoo/blob/master/torchzoo/datasets/usps.py
+# USPS Reference : https://github.com/corenel/torchzoo/blob/master/torchzoo/datasets/usps.py
 class USPS(Dataset):
     """USPS Dataset.
     Args:
@@ -120,8 +142,8 @@ class USPS(Dataset):
             self.train_data = self.train_data[indices[0:self.dataset_size], ::]
             self.train_labels = self.train_labels[indices[0:self.dataset_size]]
 
-        #self.train_data *= 255.0
-        #self.train_data = self.train_data.transpose(
+        # self.train_data *= 255.0
+        # self.train_data = self.train_data.transpose(
         #    (0, 2, 3, 1))  # convert to HWC
 
     def __getitem__(self, index):
@@ -152,20 +174,20 @@ class USPS(Dataset):
             os.makedirs(dirname)
         if not os.path.isfile(filename):
             print("Download %s to %s" % (self.url, os.path.abspath(filename)))
-            #urllib.request.urlretrieve(self.url, filename)
-            wget.download(self.url,out=os.path.join(self.root, 'usps_28x28.pkl'))
+            # urllib.request.urlretrieve(self.url, filename)
+            wget.download(self.url, out=os.path.join(self.root, 'usps_28x28.pkl'))
             print("[DONE]")
         if not os.path.isfile(os.path.join(self.root, 'usps_32x32.pkl')):
             print("Resizing USPS 28x28 to 32x32...")
             f = gzip.open(os.path.join(self.root, 'usps_28x28.pkl'), "rb")
             data_set = pickle.load(f, encoding="bytes")
-            for d in [0,1]:
+            for d in [0, 1]:
                 tmp = []
                 for img in range(data_set[d][0].shape[0]):
-                    tmp.append(np.expand_dims(skimage.transform.resize(data_set[d][0][img].squeeze(),[32,32]),0))
+                    tmp.append(np.expand_dims(skimage.transform.resize(data_set[d][0][img].squeeze(), [32, 32]), 0))
                 data_set[d][0] = np.array(tmp)
-            fp=gzip.open(os.path.join(self.root, 'usps_32x32.pkl'),'wb')
-            pickle.dump(data_set,fp)
+            fp = gzip.open(os.path.join(self.root, 'usps_32x32.pkl'), 'wb')
+            pickle.dump(data_set, fp)
             print("[DONE")
         return
 
@@ -185,14 +207,15 @@ class USPS(Dataset):
             self.dataset_size = labels.shape[0]
         return images, labels
 
-class Face(Dataset):
-    def __init__(self, root, key, load_first_n = None):
 
-        with h5py.File(root,'r') as f:
+class Face(Dataset):
+    def __init__(self, root, key, load_first_n=None):
+
+        with h5py.File(root, 'r') as f:
             data = f[key][()]
             if load_first_n:
                 data = data[:load_first_n]
-        self.imgs = (data/255.0)*2 -1
+        self.imgs = (data/255.0)*2 - 1
 
     def __getitem__(self, index):
         return self.imgs[index]

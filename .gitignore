@@ -1,0 +1,7 @@
+# modls, data and logs
+/checkpoint
+/data
+/log 
+
+# cache
+*.pyc
